@@ -32,6 +32,8 @@ station_info stations[16];
 
 int changeTemp = 0;
 int curVLCPid = 0;
+int curStation = 0;
+
 int argC;
 int forceClose = 0;
 
@@ -123,11 +125,22 @@ void* setupAndRecvSongs(void* args){
 		exit(1);
 	}
 
+	//Setting port
+	int mc_port;
+	if(curStation > TotalNoOfStations){
+		printf("No such station exists. Reverting to default station\n");
+		mc_port = 2300;
+		curStation = 0;
+	}else {
+		mc_port = ntohs(stations[curStation].data_port);
+		printf("mc_port = %d\n", mc_port);
+	}
+
   /* build address data structure */
 	memset((char *)&sin, 0, sizeof(sin));
 	sin.sin_family = AF_INET;
 	sin.sin_addr.s_addr = htonl(INADDR_ANY);
-	sin.sin_port = htons(MC_PORT);
+	sin.sin_port = htons(mc_port);
 
 
   /*Use the interface specified */ 
@@ -239,7 +252,7 @@ void* setupAndRecvSongs(void* args){
 	fp = fopen(tempSong, "wb");
 	fclose(fp);
 
-	printf("Exiting Thread\n");
+	// printf("Exiting Thread\n");
 	return NULL;
 }
 
@@ -276,17 +289,23 @@ void* checkAndCloseVLC(void* args){
 
 int main(int argc, char * argv[]){
 	argC = argc;
-	// receiveAndPrintStationList();
+	receiveAndPrintStationList();
 
 	char o;
 	char lo = 'r';
 	runRadio(argv);
+	int station;
 	
 	while(1){
-		printf("r = run, p = pause\n");
+		printf("r = run, p = pause, c = change station, e = exit\n");
 		printf("Option : ");
 		o = getc(stdin);
-		if(o == 'p' && lo != 'p'){
+		if(o == 'e'){
+			checkAndCloseVLC(NULL);
+			forceClose = 1;
+			exit(0);
+		}
+		else if(o == 'p' && lo != 'p'){
 			printf("Pausing\n");
 			checkAndCloseVLC(NULL);
 			// pthread_cancel(recvSongsPID);
@@ -296,8 +315,16 @@ int main(int argc, char * argv[]){
 			printf("Running\n");
 			runRadio(argv);
 		}
+		else if(o == 'c' && lo != 'c'){
+			checkAndCloseVLC(NULL);
+			forceClose = 1;
+			receiveAndPrintStationList();
+			printf("Station : ");
+			scanf("%d", &station);
+			curStation = station - 1;
+			runRadio(argv);
+		}
 		lo = o;
 	}
-
 	return 0;
 }
