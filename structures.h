@@ -61,7 +61,7 @@ typedef struct song_info_t {
 	char next_song_name[BUF_MAX_SIZE];
 } song_info;
 
-song_info iniSongInfo(song_info *si){
+song_info initSongInfo(song_info *si){
 	si->type = 12;
 	return *si;
 }
