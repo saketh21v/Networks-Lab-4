@@ -14,10 +14,13 @@
 #include <sys/ioctl.h>
 #include <arpa/inet.h>
 #include <unistd.h>
+#include <fcntl.h>
+#include <sys/stat.h>
+#include <pthread.h>
 
 #include "structures.h"
 
-#define MC_PORT 5432
+#define MC_PORT 2301
 #define MCAST_ADDRESS "239.192.4.10"
 #define SERVER_ADDRESS "10.6.4.246"
 #define SERVER_PORT 12022
@@ -26,6 +29,13 @@
 
 int TotalNoOfStations;
 station_info stations[16];
+
+int changeTemp = 0;
+int curVLCPid = 0;
+int argC;
+int forceClose = 0;
+
+pthread_t recvSongsPID;
 
 void receiveAndPrintStationList(){
 	int sT; // TCP Socket descriptor
@@ -75,107 +85,219 @@ void receiveAndPrintStationList(){
 	close(sT);
 }
 
-int main(int argc, char * argv[]){
+void* setupAndRecvSongs(void* args){
 
-	receiveAndPrintStationList();
+  char** argv = (char**)args;
 
-	int sD; /* UDP socket descriptor */
-	struct sockaddr_in sin; /* socket struct */
-	char *if_name; /* name of interface */
-	struct ifreq ifr; /* interface struct */
+  int s; /* socket descriptor */
+  struct sockaddr_in sin; /* socket struct */
+  char *if_name; /* name of interface */
+  struct ifreq ifr; /* interface struct */
 	char buf[BUF_SIZE];
 	int len;
-	/* Multicast specific */
-	char *mcast_addr; /* multicast address */
-	struct ip_mreq mcast_req;	/* multicast join struct */
-	struct sockaddr_in mcast_saddr; /* multicast sender*/
+  /* Multicast specific */
+  char *mcast_addr; /* multicast address */
+  struct ip_mreq mcast_req;  /* multicast join struct */
+  struct sockaddr_in mcast_saddr; /* multicast sender*/
 	socklen_t mcast_saddr_len;
 
-
-	/* Add code to take port number from user */
-	if ((argc==2)||(argc == 3)) {
+  /* Add code to take port number from user */
+	if ((argC==2)||(argC == 3)) {
 		mcast_addr = argv[1];
 	}
 	else {
-		fprintf(stderr, "usage:(sudo) receiver [interface_name (optional)]\n");
+		fprintf(stderr, "usage:(sudo) receiver multicast_address [interface_name (optional)]\n");
 		exit(1);
 	}
 
-	if(argc == 2) {
-		if_name = argv[1];
+	if(argC == 3) {
+		if_name = argv[2];
 	}
 	else
 		if_name = "wlan0";
 
 
-	/* create socket */
-	if ((sD = socket(PF_INET, SOCK_DGRAM, 0)) < 0) {
+  /* create socket */
+	if ((s = socket(PF_INET, SOCK_DGRAM, 0)) < 0) {
 		perror("receiver: socket");
 		exit(1);
 	}
 
-	/* build address data structure */
+  /* build address data structure */
 	memset((char *)&sin, 0, sizeof(sin));
 	sin.sin_family = AF_INET;
 	sin.sin_addr.s_addr = htonl(INADDR_ANY);
 	sin.sin_port = htons(MC_PORT);
 
 
-	/*Use the interface specified */ 
+  /*Use the interface specified */ 
 	memset(&ifr, 0, sizeof(ifr));
 	strncpy(ifr.ifr_name , if_name, sizeof(if_name)-1);
 
-	if ((setsockopt(sD, SOL_SOCKET, SO_BINDTODEVICE, (void *)&ifr, 
+	if ((setsockopt(s, SOL_SOCKET, SO_BINDTODEVICE, (void *)&ifr, 
 		sizeof(ifr))) < 0)
 	{
 		perror("receiver: setsockopt() error");
-		close(sD);
+		close(s);
 		exit(1);
 	}
 
-	/* bind the socket */
-	if ((bind(sD, (struct sockaddr *) &sin, sizeof(sin))) < 0) {
+  /* bind the socket */
+	if ((bind(s, (struct sockaddr *) &sin, sizeof(sin))) < 0) {
 		perror("receiver: bind()");
 		exit(1);
 	}
 
-	/* Multicast specific code follows */
+  /* Multicast specific code follows */
 
-	/* build IGMP join message structure */
+  /* build IGMP join message structure */
 	mcast_req.imr_multiaddr.s_addr = inet_addr(mcast_addr);
 	mcast_req.imr_interface.s_addr = htonl(INADDR_ANY);
 
-	/* send multicast join message */
-	if ((setsockopt(sD, IPPROTO_IP, IP_ADD_MEMBERSHIP, 
+  /* send multicast join message */
+	if ((setsockopt(s, IPPROTO_IP, IP_ADD_MEMBERSHIP, 
 		(void*) &mcast_req, sizeof(mcast_req))) < 0) {
 		perror("mcast join receive: setsockopt()");
-	exit(1);
+		exit(1);
+	}
+
+
+
+  /* receive multicast messages */  
+	printf("\nReady to listen!\n\n");  	
+
+	FILE* fp;
+	int counter = 0;
+
+	printf("Whats up?\n");
+	song_info* songInfo = (song_info*) malloc(sizeof(song_info));
+	char* tempSongs[2];
+	tempSongs[0] = "tempSong1.mp3";
+	tempSongs[1] = "tempSong2.mp3";
+
+	int changeTemp = 0;
+	int cur = 0;
+
+	char* tempSong = tempSongs[cur];
+	while(1) {
+		if(changeTemp){
+			tempSong = tempSongs[1 ^ cur];
+		}
+
+	    /* reset sender struct */
+		memset(&mcast_saddr, 0, sizeof(mcast_saddr));
+		mcast_saddr_len = sizeof(mcast_saddr);
+
+	    /* clear buffer and receive */
+		memset(buf, 0, sizeof(buf));
+		if ((len = recvfrom(s, buf, BUF_SIZE, 0, (struct sockaddr*)&mcast_saddr, 
+			&mcast_saddr_len)) < 0) {
+			perror("receiver: recvfrom()");
+		exit(1);
+	}
+
+	uint8_t temp;
+	if(len == sizeof(song_info)){
+		printf("Len = %d. Checking if songInfo...\n", len);
+		memcpy(songInfo, buf, len);
+		printf("songInfo->type = %hu\n", songInfo->type);
+		temp = (uint8_t)songInfo->type;
+
+		if(temp == 12){
+			printf("Current Song : %s\n", songInfo->song_name);
+			printf("Next Song : %s\n", songInfo->next_song_name);
+	        // fp = fopen(tempSong, "w");
+	        // fclose(fp);
+			continue;
+		}
+		else
+			printf("Nope....\n");
+		}
+
+	    // fputs(buf, stdout);
+	    // printf("Counter : %d , Len = %d, forceClose = %d\n", counter, len, forceClose);
+
+	    if(counter++ == 10){
+	    	curVLCPid = fork();
+			if(curVLCPid == 0){
+				execlp("/usr/bin/cvlc", "cvlc", tempSong, (char*) NULL);
+			}
+	    }
+
+		fp = fopen(tempSong, "ab+");
+		fwrite(buf, len, 1, fp);
+		fclose(fp);
+
+		    // write(fd, buf, len);
+
+		    /* Add code to send multicast leave request */
+		if(forceClose == 1)
+			break;
+	}
+	close(s);
+	forceClose = 0;
+	fp = fopen(tempSong, "wb");
+	fclose(fp);
+
+	printf("Exiting Thread\n");
+	return NULL;
 }
 
-
-
-	/* receive multicast messages */	
-printf("\nReady to listen!\n\n");
-
-while(1) {
-
-		/* reset sender struct */
-	memset(&mcast_saddr, 0, sizeof(mcast_saddr));
-	mcast_saddr_len = sizeof(mcast_saddr);
-
-		/* clear buffer and receive */
-	memset(buf, 0, sizeof(buf));
-	if ((len = recvfrom(sD, buf, BUF_SIZE, 0, (struct sockaddr*)&mcast_saddr, 
-		&mcast_saddr_len)) < 0) {
-		perror("receiver: recvfrom()");
-	exit(1);
-}
-fputs(buf, stdout);
-
-		/* Add code to send multicast leave request */
-
+void runRadio(char* argv[]){
+	pthread_create(&recvSongsPID, NULL, setupAndRecvSongs, argv);
 }
 
-close(sD);
-return 0;
+void* checkAndCloseVLC(void* args){
+	// system("ps > .psList");
+	
+	// FILE* fp = fopen(".psList", "r");
+	// char line[256];
+	char pidC[10];
+
+	char cmd[256];
+
+	memset(cmd, '\0', 256);
+	memset(pidC, '\0', 10);
+
+	strcpy(cmd, "kill ");
+
+	sprintf(pidC, "%d", curVLCPid);
+	memcpy(&cmd[strlen("kill ")], pidC, strlen(pidC));
+
+	// while(!feof(fp)){
+	// 	fscanf(fp, "%s\n", line);
+	// 	if(strstr(line, pidC) != NULL){
+			system(cmd);
+			return NULL;
+		// }
+	// }
+
+}
+
+int main(int argc, char * argv[]){
+	argC = argc;
+	// receiveAndPrintStationList();
+
+	char o;
+	char lo = 'r';
+	runRadio(argv);
+	
+	while(1){
+		printf("r = run, p = pause\n");
+		printf("Option : ");
+		o = getc(stdin);
+		if(o == 'p' && lo != 'p'){
+			printf("Pausing\n");
+			checkAndCloseVLC(NULL);
+			// pthread_cancel(recvSongsPID);
+			forceClose = 1;
+		}
+		else if(o == 'r' && lo != 'r'){
+			printf("Running\n");
+			runRadio(argv);
+		}
+		lo = o;
+	}
+
+	return 0;
 }

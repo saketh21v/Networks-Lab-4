@@ -13,6 +13,9 @@ Client:
 
 
 
+VLC tips:
+	Play and Exit: clvc <filename> --play-and-exit
+	Enable root : sed -i 's/geteuid/getppid/' /usr/bin/vlc
 
 
 

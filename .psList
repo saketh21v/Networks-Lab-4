@@ -1,0 +1,6 @@
+  PID TTY          TIME CMD
+12945 pts/4    00:00:00 sudo
+12948 pts/4    00:00:00 client
+12959 pts/4    00:00:00 vlc
+12997 pts/4    00:00:00 sh
+12998 pts/4    00:00:00 ps
