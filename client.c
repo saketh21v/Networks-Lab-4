@@ -233,7 +233,7 @@ void* setupAndRecvSongs(void* args){
 	    if(counter++ == 10){
 	    	curVLCPid = fork();
 			if(curVLCPid == 0){
-				execlp("/usr/bin/cvlc", "cvlc", tempSong, (char*) NULL);
+				execlp("/usr/bin/vlc", "vlc", tempSong, (char*) NULL);
 			}
 	    }
 

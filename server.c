@@ -18,15 +18,15 @@
 #include <dirent.h>
 #include <string.h>
 
-
 #include "structures.h"
+#include "bitrate.h"
 
 #define MC_PORT 2301
 #define MC_SERVER 239.192.1.10
 #define BUF_SIZE 4096
 #define SERVER 10.6.4.246
 #define SERVER_PORT 12022
-#define BUF_SIZE_SMALL 2048
+#define BUF_SIZE_SMALL 1024
 
 #define NO_OF_STATIONS 2
 
@@ -40,6 +40,7 @@ typedef struct station_id_path_t
 station_info stations[NO_OF_STATIONS];
 station_id_path stationIDPaths[NO_OF_STATIONS];
 pthread_t stationThreads[NO_OF_STATIONS];
+long idealSleep;
 
 void fillStations(){ // Fill station infos in network byte format
 	station_info si1;
@@ -125,6 +126,12 @@ void* startStationListServer(void* arg){
 	}
 }
 
+void calcBitRate(char names[][BUF_SIZE_SMALL], int bitRate[], int songsCount){
+	for(int i=0;i<songsCount;i++){
+		bitRate[i] = getBitRate(names[i]);
+	}
+}
+
 void* startStation(void* arg){
 	//Parsing directory and opening songs
 	station_id_path *sip = (station_id_path*)arg;
@@ -149,7 +156,9 @@ void* startStation(void* arg){
 
 	char songs[songsCount][BUF_SIZE_SMALL];
 	char songNames[songsCount][BUF_SIZE_SMALL];
+	
 	FILE* songFiles[songsCount];
+	int bitRates[songsCount];
 	
 	for(int i=0;i<songsCount;i++){
 		memset(songs[i], '\0', BUF_SIZE_SMALL);
@@ -194,6 +203,9 @@ void* startStation(void* arg){
 		songsInfo[i].next_song_name_size = (uint8_t)strlen(songNames[(i+1)%songsCount]) + 1;
 		strcpy((songsInfo[i].next_song_name), songNames[(i+1)%songsCount]);
 	}
+
+	//Calculating bitrates
+	calcBitRate(songs, bitRates, songsCount);
 
 	for(int i=0;i<songsCount;i++){
 		printf("%s\n", songs[i]);
@@ -255,7 +267,20 @@ void* startStation(void* arg){
 		if ((len = sendto(s, &songsInfo[curSong], sizeof(song_info), 0,(struct sockaddr *)&sin,sizeof(sin))) == -1) {
 			perror("server: sendto");
 			exit(1);
-		}		
+		}
+
+		int bitrate = bitRates[curSong];
+
+		//Calculating size of buffer
+		// Calc time delay
+		// idealSleep = ((BUF_SIZE_SMALL*8)/bitrate)*1000000;
+		idealSleep = ((BUF_SIZE_SMALL*8)/bitrate)*500000000;
+
+		if(idealSleep < 0)
+			idealSleep = ts.tv_nsec;
+
+		if(ts.tv_nsec > idealSleep)
+			ts.tv_nsec = idealSleep;
 
 		while(!(size < BUF_SIZE_SMALL)){
 					// printf("Sending... T :%d Song: %d \n", sip->id,curSong);
@@ -290,7 +315,7 @@ int main(int argc, char * argv[]){
 	//Starting all stations
 	for(int i=0;i<NO_OF_STATIONS;i++){
 	// int i = 0;
-	pthread_create(&stationThreads[i], NULL, startStation, &stationIDPaths[i]);
+		pthread_create(&stationThreads[i], NULL, startStation, &stationIDPaths[i]);
 		// startStation(&stationIDPaths[i]);
 	}
 	pthread_join(tTCPid, NULL);
