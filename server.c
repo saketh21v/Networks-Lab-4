@@ -1,6 +1,6 @@
 /* CSD 304 Computer Networks, Fall 2016
 	 Lab 4, Sender
-	 Team: 
+	 Team:
 */
 
 #include <stdio.h>
@@ -56,14 +56,14 @@ void fillStations(){ // Fill station infos in network byte format
 
 	sip.port = 2300;
 	sip.id = 1;
-	strcpy(sip.path, "/home/sv/Networks/Station_1/");
+	strcpy(sip.path, "Station_1/");
 
 	memcpy(&stations[0], &si1, sizeof(station_info));
 	memcpy(&stationIDPaths[0], &sip, sizeof(station_id_path));
 
 	bzero(&si1, sizeof(station_info));
 	bzero(&sip, sizeof(station_id_path));
-	
+
 	initStationInfo(&si1);
 	si1.type = 13;//htons(13);
 	si1.station_number = 2;//htons(2);
@@ -73,7 +73,7 @@ void fillStations(){ // Fill station infos in network byte format
 
 	sip.port = 2301;
 	sip.id = 2;
-	strcpy(sip.path, "/home/sv/Networks/Station_2/");
+	strcpy(sip.path, "Station_2/");
 
 	memcpy(&stations[1], &si1, sizeof(station_info));
 	memcpy(&stationIDPaths[1], &sip, sizeof(station_id_path));
@@ -139,10 +139,10 @@ void* startStation(void* arg){
 	DIR *dir;
 	struct dirent *ent;
 	int songsCount = 0;
-	
+
 	printf("Path : %s\n", sip->path);
-	
-	if ((dir = opendir (sip->path)) != NULL) {	
+
+	if ((dir = opendir (sip->path)) != NULL) {
 		while ((ent = readdir (dir)) != NULL) {
 				// printf ("%s\n", ent->d_name);
 			if(strstr(ent->d_name, ".mp3") != NULL)
@@ -157,20 +157,20 @@ void* startStation(void* arg){
 
 	char songs[songsCount][BUF_SIZE_SMALL];
 	char songNames[songsCount][BUF_SIZE_SMALL];
-	
+
 	FILE* songFiles[songsCount];
 	int bitRates[songsCount];
-	
+
 	for(int i=0;i<songsCount;i++){
 		memset(songs[i], '\0', BUF_SIZE_SMALL);
 		strcpy(songs[i], sip->path);
 	}
 
 	int cur = 0;
-	if ((dir = opendir (sip->path)) != NULL) {	
+	if ((dir = opendir (sip->path)) != NULL) {
 		while ((ent = readdir (dir)) != NULL) {
 				// printf ("%s\n", ent->d_name);
-			if(strstr(ent->d_name, ".mp3") != NULL){			
+			if(strstr(ent->d_name, ".mp3") != NULL){
 				memcpy(&(songs[cur][strlen(sip->path)]), ent->d_name, strlen(ent->d_name)+1);
 				strcpy((songNames[cur]), ent->d_name);
 
@@ -191,7 +191,7 @@ void* startStation(void* arg){
 
 	for(int i=0;i<songsCount;i++)
 		bzero(&songsInfo[i], sizeof(song_info));
-	
+
 	for(int i=0;i<songsCount;i++){
 		initSongInfo(&songsInfo[i]);
 		printf("Init : %hu p = %p\n", songsInfo[i].type, &songsInfo[i].type);
@@ -200,7 +200,7 @@ void* startStation(void* arg){
 	for(int i=0;i<songsCount;i++){
 		songsInfo[i].song_name_size = (uint8_t)strlen(songNames[i])+1;
 		strcpy((songsInfo[i].song_name), songNames[i]);
-		
+
 		songsInfo[i].next_song_name_size = (uint8_t)strlen(songNames[(i+1)%songsCount]) + 1;
 		strcpy((songsInfo[i].next_song_name), songNames[(i+1)%songsCount]);
 	}
@@ -255,7 +255,7 @@ void* startStation(void* arg){
 	int curSong = -1;
 	while (1) {
 		curSong = (curSong + 1) % songsCount;
-		
+
 		FILE* song = songFiles[curSong];
 		if(song == NULL) printf("FUCK YOU!!\n");
 		printf("CurSong = %d Song = %p\n", curSong, song);
@@ -264,7 +264,7 @@ void* startStation(void* arg){
 		int size = BUF_SIZE_SMALL;
 		int counter = 0;
 		printf("Sending Structure : curSong = %d. Song_Info->type = %hu p = %p\n", curSong, songsInfo[curSong].type, &songsInfo[curSong].type);
-		
+
 		if ((len = sendto(s, &songsInfo[curSong], sizeof(song_info), 0,(struct sockaddr *)&sin,sizeof(sin))) == -1) {
 			perror("server: sendto");
 			exit(1);
