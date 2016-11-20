@@ -22,7 +22,8 @@
 
 #define MC_PORT 2301
 #define MCAST_ADDRESS "239.192.4.10"
-#define SERVER_ADDRESS "10.6.4.246"
+// #define SERVER_ADDRESS "10.6.4.246"
+#define SERVER_ADDRESS "192.168.0.103"
 #define SERVER_PORT 12022
 #define BUF_SIZE 4096
 #define BUF_SIZE_SMALL 256
@@ -39,6 +40,8 @@ int forceClose = 0;
 
 pthread_t recvSongsPID;
 
+char status = 'r';
+
 void receiveAndPrintStationList(){
 	int sT; // TCP Socket descriptor
 	struct sockaddr_in serv_addr;
@@ -53,8 +56,10 @@ void receiveAndPrintStationList(){
 	serv_addr.sin_addr.s_addr = inet_addr(SERVER_ADDRESS);;
 	serv_addr.sin_port = htons(SERVER_PORT);
 	
-	if (connect(sT,(struct sockaddr *) &serv_addr,sizeof(serv_addr)) < 0) 
-		perror("ERROR connecting");
+	int st;
+	do {
+		st = connect(sT,(struct sockaddr *) &serv_addr,sizeof(serv_addr));
+	} while(st < 0);
 
 	char buf[BUF_SIZE_SMALL];
 	int rBytes = BUF_SIZE_SMALL;
@@ -233,7 +238,7 @@ void* setupAndRecvSongs(void* args){
 	    if(counter++ == 10){
 	    	curVLCPid = fork();
 			if(curVLCPid == 0){
-				execlp("/usr/bin/vlc", "vlc", tempSong, (char*) NULL);
+				execlp("/usr/bin/cvlc", "cvlc", tempSong, (char*) NULL);
 			}
 	    }
 
@@ -287,6 +292,10 @@ void* checkAndCloseVLC(void* args){
 
 }
 
+void cleanUpTempFiles(){
+	system("rm tempSong*");
+}
+
 int main(int argc, char * argv[]){
 	argC = argc;
 	receiveAndPrintStationList();
@@ -303,6 +312,7 @@ int main(int argc, char * argv[]){
 		if(o == 'e'){
 			checkAndCloseVLC(NULL);
 			forceClose = 1;
+			// cleanUpTempFiles();
 			exit(0);
 		}
 		else if(o == 'p' && lo != 'p'){
@@ -310,19 +320,25 @@ int main(int argc, char * argv[]){
 			checkAndCloseVLC(NULL);
 			// pthread_cancel(recvSongsPID);
 			forceClose = 1;
+			// cleanUpTempFiles();
+			status = 'p';
 		}
 		else if(o == 'r' && lo != 'r'){
 			printf("Running\n");
 			runRadio(argv);
+			status = 'r';
 		}
 		else if(o == 'c' && lo != 'c'){
 			checkAndCloseVLC(NULL);
 			forceClose = 1;
+			// cleanUpTempFiles();
+			
 			receiveAndPrintStationList();
 			printf("Station : ");
 			scanf("%d", &station);
 			curStation = station - 1;
 			runRadio(argv);
+			status = 'c';
 		}
 		lo = o;
 	}

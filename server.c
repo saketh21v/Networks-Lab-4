@@ -84,7 +84,8 @@ void* startStationListServer(void* arg){
 	int len;
 	int s, new_s;
 	char str[INET_ADDRSTRLEN];
-	char *serverIP = "10.6.4.246";
+	// char *serverIP = "10.6.4.246";
+	char *serverIP = "192.168.0.103";
 
 	/* build address data structure */
 	bzero((char *)&sin, sizeof(sin));
