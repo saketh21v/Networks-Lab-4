@@ -26,7 +26,7 @@ int getBitRate(char *fName){
 	char *s;
 	fgets(buf, sizeof(buf), fp);
 	// printf("buf = %s\n", buf);
-	char* p = strstr(buf,"kb/s\n");
+	char* p = strstr(buf,"Kbps\n");
 	// printf("p = %s\n", p);
 	memset(p, '\0', strlen(p));
 

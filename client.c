@@ -1,6 +1,6 @@
 /* CSD 304 Computer Networks, Fall 2016
 	 Lab 4, multicast receiver
-	 Team: 
+	 Team:
 */
 
 #include <stdio.h>
@@ -20,18 +20,18 @@
 
 #include "structures.h"
 
-#define MC_PORT 2301
+// #define MC_PORT 2301
 #define MCAST_ADDRESS "239.192.4.10"
-// #define SERVER_ADDRESS "10.6.4.246"
-#define SERVER_ADDRESS "192.168.0.103"
-#define SERVER_PORT 12022
+#define SERVER_ADDRESS "10.6.4.246"
+// #define SERVER_ADDRESS "192.168.0.103"
+#define SERVER_PORT 8899
 #define BUF_SIZE 4096
 #define BUF_SIZE_SMALL 256
 
+int changeTemp = 0;
 int TotalNoOfStations;
 station_info stations[16];
 
-int changeTemp = 0;
 int curVLCPid = 0;
 int curStation = 0;
 
@@ -45,7 +45,7 @@ char status = 'r';
 void receiveAndPrintStationList(){
 	int sT; // TCP Socket descriptor
 	struct sockaddr_in serv_addr;
-	
+
 	if ((sT = socket(PF_INET, SOCK_STREAM, 0)) < 0) {
 		perror("receiver: socket");
 		exit(1);
@@ -55,7 +55,7 @@ void receiveAndPrintStationList(){
 	serv_addr.sin_family = AF_INET;
 	serv_addr.sin_addr.s_addr = inet_addr(SERVER_ADDRESS);;
 	serv_addr.sin_port = htons(SERVER_PORT);
-	
+
 	int st;
 	do {
 		st = connect(sT,(struct sockaddr *) &serv_addr,sizeof(serv_addr));
@@ -67,7 +67,7 @@ void receiveAndPrintStationList(){
 	send(sT, "name.txt\n", 9, 0);
 
 	uint32_t noOfStations = 0;
-	
+
 	read(sT, &noOfStations, sizeof(uint32_t));
 	noOfStations = ntohl(noOfStations);
 	TotalNoOfStations = noOfStations;
@@ -148,11 +148,11 @@ void* setupAndRecvSongs(void* args){
 	sin.sin_port = htons(mc_port);
 
 
-  /*Use the interface specified */ 
+  /*Use the interface specified */
 	memset(&ifr, 0, sizeof(ifr));
 	strncpy(ifr.ifr_name , if_name, sizeof(if_name)-1);
 
-	if ((setsockopt(s, SOL_SOCKET, SO_BINDTODEVICE, (void *)&ifr, 
+	if ((setsockopt(s, SOL_SOCKET, SO_BINDTODEVICE, (void *)&ifr,
 		sizeof(ifr))) < 0)
 	{
 		perror("receiver: setsockopt() error");
@@ -173,7 +173,7 @@ void* setupAndRecvSongs(void* args){
 	mcast_req.imr_interface.s_addr = htonl(INADDR_ANY);
 
   /* send multicast join message */
-	if ((setsockopt(s, IPPROTO_IP, IP_ADD_MEMBERSHIP, 
+	if ((setsockopt(s, IPPROTO_IP, IP_ADD_MEMBERSHIP,
 		(void*) &mcast_req, sizeof(mcast_req))) < 0) {
 		perror("mcast join receive: setsockopt()");
 		exit(1);
@@ -181,8 +181,8 @@ void* setupAndRecvSongs(void* args){
 
 
 
-  /* receive multicast messages */  
-	printf("\nReady to listen!\n\n");  	
+  /* receive multicast messages */
+	printf("\nReady to listen!\n\n");
 
 	FILE* fp;
 	int counter = 0;
@@ -208,7 +208,7 @@ void* setupAndRecvSongs(void* args){
 
 	    /* clear buffer and receive */
 		memset(buf, 0, sizeof(buf));
-		if ((len = recvfrom(s, buf, BUF_SIZE, 0, (struct sockaddr*)&mcast_saddr, 
+		if ((len = recvfrom(s, buf, BUF_SIZE, 0, (struct sockaddr*)&mcast_saddr,
 			&mcast_saddr_len)) < 0) {
 			perror("receiver: recvfrom()");
 		exit(1);
@@ -267,7 +267,7 @@ void runRadio(char* argv[]){
 
 void* checkAndCloseVLC(void* args){
 	// system("ps > .psList");
-	
+
 	// FILE* fp = fopen(".psList", "r");
 	// char line[256];
 	char pidC[10];
@@ -304,14 +304,14 @@ int main(int argc, char * argv[]){
 	char lo = 'r';
 	runRadio(argv);
 	int station;
-	
+
 	while(1){
 		printf("r = run, p = pause, c = change station, e = exit\n");
 		printf("Option : ");
 		o = getc(stdin);
 		if(o == 'e'){
 			checkAndCloseVLC(NULL);
-			forceClose = 1;
+			forceClose = 1;	
 			// cleanUpTempFiles();
 			exit(0);
 		}
@@ -332,7 +332,7 @@ int main(int argc, char * argv[]){
 			checkAndCloseVLC(NULL);
 			forceClose = 1;
 			// cleanUpTempFiles();
-			
+
 			receiveAndPrintStationList();
 			printf("Station : ");
 			scanf("%d", &station);
